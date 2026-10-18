@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse Desk — interactive demo</title>
+<style>
+/* ============================================================================
+   Pulse Desk — interactive UI demo
+   Flat source-list sidebar, grouped background, solid cards — no blur,
+   glass, floating cards or drop shadows.
+   v2 changes from your review:
+     - removed the top-bar pills (LIVE money / Core bot running) and Sync wallet
+     - removed "all five methods" wording
+     - removed the AI council block from Home (it lives on its own page)
+     - removed the bottom-right badge
+     - paper and live numbers are never mixed
+     - period buttons now really change the numbers
+     - Testing: choose WHICH methods to test, with a moving timer
+     - real candlestick chart + sparklines, click to enlarge
+     - coin rows: sparkline, entry time/price, leave-alone / ban / buy / sell
+     - ALL strategies listed, Wish / Strategies / Rules / Settings built out
+   ALL DATA IS FAKE.
+   ============================================================================ */
+:root{
+  --color-ink:#1f1f1f; --color-accent:#3880f0; --color-accent-soft:rgba(56,128,240,.12);
+  --color-canvas:#ffffff; --color-grouped:#f2f2f7; --color-grouped-muted:#f7f7fa;
+  --color-secondary:#6b6b6b; --color-muted:#9a9a9a; --color-border:rgba(31,31,31,.1);
+  --color-danger:#e11d48; --color-danger-soft:rgba(225,29,72,.1);
+  --color-warning:#ff9500; --color-warning-soft:rgba(255,149,0,.12); --color-warning-ink:#9a5b00;
+  --up:#1f8f3d; --down:#e11d48;
+  --font-body:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+  --rail:268px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--color-grouped);color:var(--color-ink);font-family:var(--font-body);font-size:15px;-webkit-font-smoothing:antialiased}
+.shell{display:flex;min-height:100vh}
+/* sidebar */
+.rail{width:var(--rail);flex:0 0 var(--rail);background:var(--color-canvas);border-right:1px solid var(--color-border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.rail-head{display:flex;align-items:center;gap:10px;padding:18px 18px 12px}
+.mark{width:26px;height:26px;border-radius:8px;background:var(--color-ink);color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px}
+.rail-head .name{font-size:17px;font-weight:600;letter-spacing:-.01em}
+.rail-nav{flex:1;overflow:auto;padding:0 10px 10px}
+.rail-section{font-size:13px;font-weight:600;color:var(--color-secondary);padding:14px 8px 6px}
+.row{display:flex;align-items:center;gap:11px;min-height:44px;padding:0 8px;border-radius:8px;cursor:pointer;transition:background .12s ease}
+.row .ic{width:22px;height:22px;flex:0 0 22px;display:grid;place-items:center;color:var(--color-secondary)}
+.row .ic svg{width:20px;height:20px;stroke-width:1.75;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+.row .lbl{font-size:15px}
+.row:hover{background:rgba(31,31,31,.05)}
+.row:active{transform:scale(.97)}
+.row.sel{background:rgba(31,31,31,.06)}
+.row.sel .lbl{font-weight:600}
+.row.sel .ic{color:var(--color-accent)}
+.row.sel .ic svg{stroke-width:2}
+.row .badge{margin-left:auto;font-size:12px;font-weight:600;padding:2px 7px;border-radius:999px;background:var(--color-accent-soft);color:var(--color-accent)}
+.row .dot{margin-left:auto;width:8px;height:8px;border-radius:50%;background:var(--up)}
+.row .dot.off{background:var(--color-muted)}
+.row .dot.paper{background:var(--color-accent)}
+.rail-foot{border-top:1px solid var(--color-border);padding:10px}
+.who{display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px}
+.who:hover{background:rgba(31,31,31,.05)}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--color-grouped);display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--color-secondary)}
+/* content */
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:5;background:var(--color-canvas);border-bottom:1px solid var(--color-border);padding:14px 26px}
+.topbar h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.02em}
+.topbar .sub{color:var(--color-secondary);font-size:13px;margin-top:2px}
+.page{padding:22px 26px 44px;display:none}
+.page.on{display:block;animation:fade .18s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+/* bits */
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:5px 11px;border-radius:999px;background:var(--color-grouped);color:var(--color-secondary)}
+.pill.live{background:var(--color-danger-soft);color:var(--color-danger)}
+.pill.paper{background:var(--color-accent-soft);color:var(--color-accent)}
+.pill.ok{background:rgba(52,199,89,.14);color:var(--up)}
+.pill .led{width:7px;height:7px;border-radius:50%;background:currentColor}
+.btn{font:inherit;font-size:14px;font-weight:600;border-radius:10px;padding:9px 15px;border:1px solid var(--color-border);background:var(--color-canvas);color:var(--color-ink);cursor:pointer}
+.btn:hover{background:var(--color-grouped-muted)}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--color-accent);border-color:var(--color-accent);color:#fff}
+.btn.danger{background:var(--color-danger-soft);border-color:transparent;color:var(--color-danger)}
+.btn.sm{font-size:13px;padding:6px 11px;border-radius:9px}
+.btn.tiny{font-size:12px;padding:4px 8px;border-radius:8px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.card{background:var(--color-canvas);border:1px solid var(--color-border);border-radius:14px}
+.card .hd{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--color-border);flex-wrap:wrap}
+.card .hd h2{margin:0;font-size:15px;font-weight:600}
+.card .hd .spacer{flex:1}
+.card .bd{padding:16px}
+.grid{display:grid;gap:16px}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:1180px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g2,.g3{grid-template-columns:1fr}}
+.stat{background:var(--color-canvas);border:1px solid var(--color-border);border-radius:14px;padding:15px 16px}
+.stat .k{font-size:13px;font-weight:600;color:var(--color-secondary)}
+.stat .v{font-size:26px;font-weight:600;letter-spacing:-.02em;margin-top:6px;font-variant-numeric:tabular-nums}
+.stat .d{font-size:13px;margin-top:4px;color:var(--color-secondary);font-variant-numeric:tabular-nums}
+.up{color:var(--up)}.down{color:var(--down)}.muted{color:var(--color-muted)}
+.squares{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+@media (max-width:1180px){.squares{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.sq{border:1px solid var(--color-border);border-radius:14px;background:var(--color-canvas);padding:13px 14px;cursor:pointer;transition:border-color .12s,background .12s}
+.sq:hover{border-color:rgba(31,31,31,.22);background:var(--color-grouped-muted)}
+.sq .nm{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--color-secondary)}
+.sq .nm .led{width:8px;height:8px;border-radius:50%;background:var(--up)}
+.sq .nm .led.off{background:var(--color-muted)}
+.sq .nm .led.paper{background:var(--color-accent)}
+.sq .big{font-size:21px;font-weight:600;margin-top:9px;font-variant-numeric:tabular-nums}
+.sq .sub{font-size:12px;color:var(--color-muted);margin-top:3px;font-variant-numeric:tabular-nums}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{font-size:12px;font-weight:600;color:var(--color-secondary);text-align:left;padding:9px 12px;border-bottom:1px solid var(--color-border);white-space:nowrap}
+td{padding:11px 12px;border-bottom:1px solid var(--color-border);font-size:14px}
+tbody tr:last-child td{border-bottom:0}
+tbody tr.clickable{cursor:pointer}
+tbody tr.clickable:hover{background:var(--color-grouped-muted)}
+.num{text-align:right}
+.coin{display:flex;align-items:center;gap:10px}
+.tick{width:26px;height:26px;border-radius:50%;background:var(--color-grouped);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--color-secondary);flex:0 0 26px}
+.tag{font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--color-grouped);color:var(--color-secondary);white-space:nowrap}
+.tag.buy{background:rgba(52,199,89,.14);color:var(--up)}
+.tag.sell{background:var(--color-danger-soft);color:var(--down)}
+.tag.ban{background:var(--color-grouped);color:var(--color-muted)}
+.tag.paper{background:var(--color-accent-soft);color:var(--color-accent)}
+.acts{display:flex;gap:6px}
+.seg{display:inline-flex;background:var(--color-grouped);border-radius:10px;padding:3px;gap:2px}
+.seg button{font:inherit;font-size:13px;font-weight:600;border:0;background:transparent;color:var(--color-secondary);padding:6px 12px;border-radius:8px;cursor:pointer}
+.seg button.on{background:var(--color-canvas);color:var(--color-ink)}
+.note{font-size:13px;color:var(--color-secondary);background:var(--color-grouped-muted);border:1px solid var(--color-border);border-radius:12px;padding:12px 14px}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--color-border)}
+.kv:last-child{border-bottom:0}
+.kv .k{color:var(--color-secondary);font-size:14px}
+.kv .v{font-weight:600;font-variant-numeric:tabular-nums}
+.chartwrap{border:1px solid var(--color-border);border-radius:12px;background:var(--color-canvas);padding:8px}
+canvas{display:block;width:100%}
+/* modal + drawer */
+.scrim{position:fixed;inset:0;background:rgba(31,31,31,.4);display:none;z-index:40;align-items:center;justify-content:center}
+.scrim.on{display:flex}
+.modal{background:var(--color-canvas);border-radius:16px;width:min(920px,94vw);max-height:88vh;overflow:auto}
+.modal .hd{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--color-border)}
+.modal .hd h3{margin:0;font-size:16px;font-weight:600}
+.modal .hd .spacer{flex:1}
+.modal .bd{padding:18px}
+input[type=text],input[type=number]{font:inherit;padding:7px 10px;border:1px solid var(--color-border);border-radius:9px;background:var(--color-canvas);color:var(--color-ink)}
+input[type=checkbox]{width:17px;height:17px;accent-color:var(--color-accent)}
+label.ck{display:flex;align-items:center;gap:9px;font-size:14px;padding:7px 0}
+.spark{width:66px;height:22px;display:block}
+.timer{font-family:var(--font-mono);font-size:13px;color:var(--color-secondary)}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <div class="rail-head"><div class="mark">PD</div><div class="name">Pulse Desk</div></div>
+    <nav class="rail-nav">
+      <div class="rail-section">Overview</div>
+      <div class="row sel" data-page="home"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg></span><span class="lbl">Home</span></div>
+      <div class="row" data-page="testing"><span class="ic"><svg viewBox="0 0 24 24"><path d="M9 3h6"/><path d="M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6A2 2 0 0 0 19 18l-5-9V3"/></svg></span><span class="lbl">Testing</span><span class="badge">paper</span></div>
+      <div class="rail-section">Methods</div>
+      <div class="row" data-page="core"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 12h8M12 8v8"/></svg></span><span class="lbl">Core bot</span><span class="dot" id="dotCore"></span></div>
+      <div class="row" data-page="wish"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5"/></svg></span><span class="lbl">Wish Me Rich</span><span class="dot off" id="dotWish"></span></div>
+      <div class="row" data-page="moon"><span class="ic"><svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z"/></svg></span><span class="lbl">Moonshot</span><span class="dot off" id="dotMoon"></span></div>
+      <div class="row" data-page="alpha"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v6h-6"/></svg></span><span class="lbl">On-chain Alpha</span><span class="dot off" id="dotAlpha"></span></div>
+      <div class="row" data-page="follows"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M17 11l2 2 3-3"/></svg></span><span class="lbl">Follows</span><span class="badge">new</span></div>
+      <div class="rail-section">Tools</div>
+      <div class="row" data-page="council"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></span><span class="lbl">AI council</span></div>
+      <div class="row" data-page="exchanges"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg></span><span class="lbl">Exchanges</span></div>
+      <div class="row" data-page="strategies"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg></span><span class="lbl">Strategies</span></div>
+      <div class="row" data-page="rules"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 5-3.4 7.6-8 8-4.6-.4-8-3-8-8V7Z"/><path d="M9 12l2 2 4-4"/></svg></span><span class="lbl">Rules</span></div>
+      <div class="row" data-page="settings"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a7.9 7.9 0 0 0 .1-1 7.9 7.9 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a8 8 0 0 0-1.7-1L15 4.5h-4l-.4 2.6a8 8 0 0 0-1.7 1l-2.3-1-2 3.4L6.6 13a7.9 7.9 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a8 8 0 0 0 1.7 1l.4 2.6h4l.4-2.6a8 8 0 0 0 1.7-1l2.3 1 2-3.4Z"/></svg></span><span class="lbl">Settings</span></div>
+    </nav>
+    <div class="rail-foot"><div class="who"><div class="avatar">SN</div><div><div style="font-size:14px;font-weight:600">Sulaiman</div><div style="font-size:12px;color:var(--color-secondary)">operator</div></div></div></div>
+  </aside>
+
+  <div class="main">
+    <!-- top bar: title only (the pills and Sync wallet are gone, as asked) -->
+    <div class="topbar"><h1 id="ptitle">Home</h1><div class="sub" id="psub">Everything at a glance</div></div>
+
+    <!-- ================= HOME ================= -->
+    <section class="page on" id="page-home">
+      <div class="grid g4" style="margin-bottom:16px">
+        <div class="stat"><div class="k">Money today</div><div class="v up" data-per="today">+$1,284.55</div><div class="d" data-per="today">43 trades · 30 win / 13 loss</div></div>
+        <div class="stat"><div class="k">Overall</div><div class="v up" data-per="all">+$8,932.10</div><div class="d" data-per="all">1,908 trades · win rate 61%</div></div>
+        <div class="stat"><div class="k">Running now</div><div class="v" id="runningNow">Core bot</div><div class="d" id="runningSince">online 6h 12m</div></div>
+        <div class="stat"><div class="k">Money in wallets</div><div class="v">$4,206.77</div><div class="d">4 wallets · <span class="muted">live only</span></div></div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd"><h2>Methods</h2><div class="spacer"></div><span class="muted" style="font-size:13px">live status · click for detail</span></div>
+        <div class="bd"><div class="squares" id="methodSquares"></div></div>
+      </div>
+
+      <div class="grid g2" style="margin-bottom:16px">
+        <div class="card">
+          <div class="hd"><h2>History</h2><div class="spacer"></div>
+            <div class="seg" id="segHome">
+              <button class="on" data-per="today">Today</button><button data-per="yday">Yesterday</button>
+              <button data-per="7">7 days</button><button data-per="15">15 days</button><button data-per="30">30 days</button>
+            </div><button class="btn sm" id="csvBtn">CSV</button></div>
+          <div class="bd" style="padding-bottom:6px">
+            <div class="grid g4" style="margin-bottom:14px">
+              <div class="stat"><div class="k">Won</div><div class="v" id="hWon">30</div><div class="d up" id="hWonUsd">+$1,988.20</div></div>
+              <div class="stat"><div class="k">Lost</div><div class="v" id="hLost">13</div><div class="d down" id="hLostUsd">−$703.65</div></div>
+              <div class="stat"><div class="k">Win rate</div><div class="v" id="hRate">61%</div><div class="d" id="hBest">best: Core bot 68%</div></div>
+              <div class="stat"><div class="k">Trades</div><div class="v" id="hTrades">43</div><div class="d" id="hSplit">Core 31 · Alpha 12</div></div>
+            </div>
+            <table><thead><tr><th>Method</th><th class="num">Bought</th><th class="num">Sold</th><th class="num">Won</th><th class="num">Lost</th><th class="num">P&amp;L</th></tr></thead>
+              <tbody id="historyRows"></tbody></table>
+            <div class="note" style="margin:14px 0 0">Daily reading resets at <b>00:00</b> for every method — the reading/status, not the whole system.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd"><h2>Wallets</h2><div class="spacer"></div><button class="btn sm" id="addWalletBtn">Add wallet</button></div>
+          <div class="bd" style="padding:6px 0"><table><tbody id="walletRows"></tbody></table></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CORE BOT ================= -->
+    <section class="page" id="page-core">
+      <div class="grid g4" style="margin-bottom:16px">
+        <div class="stat"><div class="k">Money today</div><div class="v up">+$742.18</div><div class="d">31 trades</div></div>
+        <div class="stat"><div class="k">Overall</div><div class="v up">+$6,410.90</div><div class="d">win rate 61%</div></div>
+        <div class="stat"><div class="k">Slots</div><div class="v"><span id="slotsCore">3</span> / 5</div>
+          <div class="d"><button class="btn tiny" data-slots="core" data-d="-1">−</button> <button class="btn tiny" data-slots="core" data-d="1">+</button> <span class="muted">change slots</span></div></div>
+        <div class="stat"><div class="k">Status</div><div class="v" id="coreStatusPill"><span class="pill ok"><span class="led"></span>running live</span></div>
+          <div class="d">since 06:31 · <button class="btn tiny" id="syncBtn">Sync wallet</button></div></div>
+      </div>
+      <div class="grid g2" style="margin-bottom:16px">
+        <div class="card">
+          <div class="hd"><h2>Chart</h2><div class="spacer"></div>
+            <div class="seg" id="segTf"><button data-tf="S">S</button><button class="on" data-tf="M">M</button><button data-tf="L">L</button><button data-tf="XL">XL</button></div>
+            <button class="btn sm" id="chartBig">Enlarge</button></div>
+          <div class="bd">
+            <div class="chartwrap"><canvas id="chartMain" height="200"></canvas></div>
+            <div class="note" style="margin-top:12px">Up/down candles, volume, and the <b>pullback signal</b> the Moonshot method uses. Forecast line = the council's plan.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd"><h2>Hot coins now</h2><div class="spacer"></div><span class="pill" id="takenPill">3 of 5 taken</span></div>
+          <div class="bd" style="padding:6px 0"><table>
+            <thead><tr><th>Coin</th><th>7d</th><th class="num">Signal</th><th class="num">24h</th><th>State</th><th>Actions</th></tr></thead>
+            <tbody id="hotRows"></tbody></table></div>
+        </div>
+      </div>
+      <div class="grid g2">
+        <div class="card">
+          <div class="hd"><h2>Open positions</h2><div class="spacer"></div><span class="muted" style="font-size:13px">entry time &amp; price shown</span><button class="btn sm danger" id="sellAllBtn">Sell all</button></div>
+          <div class="bd" style="padding:6px 0"><table>
+            <thead><tr><th>Coin</th><th>Bought at</th><th>Running</th><th class="num">Entry</th><th class="num">Now</th><th class="num">P&amp;L</th><th>Actions</th></tr></thead>
+            <tbody id="posRows"></tbody></table></div>
+        </div>
+        <div class="card">
+          <div class="hd"><h2>Strategy keys</h2><div class="spacer"></div><span class="muted" style="font-size:13px">all of them · Core bot only</span></div>
+          <div class="bd" style="padding:6px 0"><table><thead><tr><th>Key</th><th>State</th><th class="num">Won</th><th class="num">Lost</th><th class="num">P&amp;L</th></tr></thead><tbody id="keyRows"></tbody></table></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= TESTING (paper only) ================= -->
+    <section class="page" id="page-testing">
+      <div class="note" style="margin-bottom:16px"><b>Paper only — completely separate from live money.</b> Nothing here is a real order, so these can run at the same time as the live engines, even all five at once. Duration is in <b>days</b>.</div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd"><h2>Start a test</h2><div class="spacer"></div>
+          <span class="muted" style="font-size:13px">budget per method</span><input type="number" id="pBudget" value="100" style="width:86px;text-align:right">
+          <span class="muted" style="font-size:13px">USD · run for</span><input type="number" id="pDays" value="14" style="width:64px;text-align:right">
+          <span class="muted" style="font-size:13px">days</span>
+          <button class="btn primary sm" id="startTest" disabled>Start testing</button></div>
+        <div class="bd" id="pickMethods"></div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd"><h2>Running tests</h2><div class="spacer"></div><span class="muted" style="font-size:13px">paper money only — never mixed with live</span></div>
+        <div class="bd"><div class="squares" id="paperSquares"></div></div>
+      </div>
+      <div class="card">
+        <div class="hd"><h2>Test detail</h2><div class="spacer"></div><span class="pill paper" id="detailPill">Core bot · paper · $100</span></div>
+        <div class="bd">
+          <div class="kv"><span class="k">Started</span><span class="v" id="tStarted">5 Oct 06:31 · day 6 of 14</span></div>
+          <div class="kv"><span class="k">Time remaining</span><span class="v timer" id="tTimer">08:00:00</span></div>
+          <div class="kv"><span class="k">Money now</span><span class="v up" id="tMoney">$118.40</span></div>
+          <div class="kv"><span class="k">Trades</span><span class="v" id="tTrades">88 · 54 win / 34 loss</span></div>
+          <div class="kv"><span class="k">Shutdowns</span><span class="v" id="tShutdown">1 — daily halt, 3 Oct 22:10</span></div>
+          <div class="kv"><span class="k">Best / worst coin</span><span class="v">PEPE +$9.10 · ARB −$4.40</span></div>
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <button class="btn sm" id="tPause">Pause</button><button class="btn sm" id="tStop">Stop</button><button class="btn sm" id="tReset">Reset</button></div>
+          <div class="note" style="margin-top:14px" id="tMsg">Buttons here really respond — press Pause and watch the timer hold.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= WISH ================= -->
+    <section class="page" id="page-wish">
+      <div class="grid g4" style="margin-bottom:16px">
+        <div class="stat"><div class="k">Money today</div><div class="v muted">$0.00</div><div class="d">stopped</div></div>
+        <div class="stat"><div class="k">Overall</div><div class="v up">+$1,204.33</div><div class="d">win rate 54% · 611 trades</div></div>
+        <div class="stat"><div class="k">Spray slots</div><div class="v"><span id="slotsWish">5</span> / 8</div>
+          <div class="d"><button class="btn tiny" data-slots="wish" data-d="-1">−</button> <button class="btn tiny" data-slots="wish" data-d="1">+</button></div></div>
+        <div class="stat"><div class="k">Status</div><div class="v"><span class="pill"><span class="led" style="background:var(--color-muted)"></span>stopped</span></div>
+          <div class="d"><button class="btn tiny" id="wishStart">Start Wish LIVE</button></div></div>
+      </div>
+      <div class="grid g2" style="margin-bottom:16px">
+        <div class="card"><div class="hd"><h2>Spray settings</h2><div class="spacer"></div><span class="muted" style="font-size:13px">$1–2 per spray</span></div>
+          <div class="bd">
+            <div class="kv"><span class="k">Spray amount</span><span class="v">$1.00 – $2.00</span></div>
+            <div class="kv"><span class="k">Sell timer</span><span class="v">random 1–6 h</span></div>
+            <div class="kv"><span class="k">Exit style</span><span class="v">peak-trailing</span></div>
+            <div class="kv"><span class="k">Active sprays now</span><span class="v">0</span></div>
+          </div></div>
+        <div class="card"><div class="hd"><h2>Wish positions</h2><div class="spacer"></div><button class="btn sm danger">Sell all Wish</button></div>
+          <div class="bd" style="padding:6px 0"><table><thead><tr><th>Coin</th><th class="num">Entry</th><th class="num">Now</th><th class="num">P&amp;L</th><th>Timer</th></tr></thead><tbody>
+            <tr><td class="muted">no open sprays</td><td class="num muted">—</td><td class="num muted">—</td><td class="num muted">—</td><td class="muted">—</td></tr>
+          </tbody></table></div></div>
+      </div>
+      <div class="card"><div class="hd"><h2>Wish history</h2><div class="spacer"></div><div class="seg"><button class="on">Today</button><button>7 days</button><button>30 days</button></div></div>
+        <div class="bd" style="padding:6px 0"><table><thead><tr><th>Coin</th><th>Bought at</th><th class="num">Size</th><th class="num">Exit</th><th class="num">P&amp;L</th></tr></thead><tbody>
+          <tr><td>BONK</td><td>3 Oct 14:02</td><td class="num">$2.00</td><td class="num">+38%</td><td class="num up">+$0.76</td></tr>
+          <tr><td>MOODENG</td><td>3 Oct 11:40</td><td class="num">$1.00</td><td class="num">−12%</td><td class="num down">−$0.12</td></tr>
+          <tr><td>POPCAT</td><td>2 Oct 22:15</td><td class="num">$2.00</td><td class="num">+9%</td><td class="num up">+$0.18</td></tr>
+        </tbody></table></div></div>
+    </section>
+
+    <!-- ================= MOONSHOT ================= -->
+    <section class="page" id="page-moon">
+      <div class="grid g4" style="margin-bottom:16px">
+        <div class="stat"><div class="k">Money today</div><div class="v muted">$0.00</div><div class="d">stopped</div></div>
+        <div class="stat"><div class="k">Overall</div><div class="v up">+$2,118.70</div><div class="d">win rate 57%</div></div>
+        <div class="stat"><div class="k">Record today</div><div class="v">0 / 0</div><div class="d">resets 00:00</div></div>
+        <div class="stat"><div class="k">Status</div><div class="v"><span class="pill"><span class="led" style="background:var(--color-muted)"></span>stopped</span></div>
+          <div class="d"><button class="btn tiny" id="moonStart">Start Moonshot</button></div></div>
+      </div>
+      <div class="grid g2">
+        <div class="card"><div class="hd"><h2>Moonshot chart</h2><div class="spacer"></div><div class="seg"><button>S</button><button class="on">M</button><button>L</button><button>XL</button></div></div>
+          <div class="bd"><div class="chartwrap"><canvas id="chartMoon" height="200"></canvas></div>
+          <div class="note" style="margin-top:12px">This is the <b>pullback method</b>: it waits for a trend, then enters on the pullback. The same signal is drawn on the Core bot chart.</div></div></div>
+        <div class="card"><div class="hd"><h2>Moonshot positions</h2><div class="spacer"></div><span class="muted" style="font-size:13px">peak-trailing exit</span></div>
+          <div class="bd" style="padding:6px 0"><table><thead><tr><th>Coin</th><th class="num">Entry</th><th class="num">Peak</th><th class="num">Trail</th><th class="num">P&amp;L</th></tr></thead><tbody>
+            <tr><td class="muted">no open moonshots</td><td class="num muted">—</td><td class="num muted">—</td><td class="num muted">—</td><td class="num muted">—</td></tr>
+          </tbody></table></div></div>
+      </div>
+    </section>
+
+    <!-- ================= ON-CHAIN ALPHA ================= -->
+    <section class="page" id="page-alpha">
+      <div class="grid g4" style="margin-bottom:16px">
+        <div class="stat"><div class="k">Slots</div><div class="v"><span id="slotsAlpha">2</span> / 4</div>
+          <div class="d"><button class="btn tiny" data-slots="alpha" data-d="-1">−</button> <button class="btn tiny" data-slots="alpha" data-d="1">+</button> <span class="muted">separate from Core</span></div></div>
+        <div class="stat"><div class="k">Money today</div><div class="v up">+$318.40</div><div class="d">12 trades</div></div>
+        <div class="stat"><div class="k">Overall</div><div class="v up">+$2,521.20</div><div class="d">win rate 58%</div></div>
+        <div class="stat"><div class="k">Conflict</div><div class="v">Follows</div><div class="d">both trade alpha coins — never both live</div></div>
+      </div>
+      <div class="grid g2">
+        <div class="card"><div class="hd"><h2>Alpha positions</h2><div class="spacer"></div><button class="btn sm">Close now</button></div>
+          <div class="bd" style="padding:6px 0"><table><thead><tr><th>Coin</th><th>Bought at</th><th class="num">Entry</th><th class="num">P&amp;L</th><th>Actions</th></tr></thead><tbody id="alphaPos"></tbody></table></div></div>
+        <div class="card"><div class="hd"><h2>Candidates (next buys)</h2><div class="spacer"></div><span class="pill">4 found</span></div>
+          <div class="bd" style="padding:6px 0"><table><thead><tr><th>Coin</th><th>7d</th><th class="num">Score</th><th class="num">Age</th><th>Actions</th></tr></thead><tbody id="alphaCand"></tbody></table></div></div>
+      </div>
+      <div class="card" style="margin-top:16px"><div class="hd"><h2>Timing</h2><div class="spacer"></div><span class="muted" style="font-size:13px">when to open</span></div>
+        <div class="bd"><div class="kv"><span class="k">Auto open</span><span class="v">ON</span></div>
+          <div class="kv"><span class="k">Open window</span><span class="v">when volume ≥ 3× 1h average</span></div>
+          <div class="kv"><span class="k">Cooldown after a loss</span><span class="v">45 min</span></div></div></div>
+    </section>
+
+    <!-- ================= FOLLOWS ================= -->
+    <section class="page" id="page-follows">
+      <div class="grid g4" style="margin-bottom:16px">
+        <div class="stat"><div class="k">Status</div><div class="v" id="followsStatus">Not set up</div><div class="d">needs a DEX Screener API key</div></div>
+        <div class="stat"><div class="k">Copy amount</div><div class="v">$5.00</div><div class="d">small amounts only · never all the money</div></div>
+        <div class="stat"><div class="k">Search AIs</div><div class="v" id="cfgSearch">3</div><div class="d">scanning DEX Screener</div></div>
+        <div class="stat"><div class="k">Validation AIs</div><div class="v" id="cfgCouncil">5</div><div class="d">must not reject everything</div></div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="hd"><h2>Who to follow</h2><div class="spacer"></div><span class="pill">pump.fun</span>
+          <button class="btn sm" id="findTrader">Find now</button><button class="btn sm primary" id="followIt" disabled>Follow selected</button></div>
+        <div class="bd" style="padding:6px 0"><table>
+          <thead><tr><th></th><th>Wallet</th><th>Coin</th><th class="num">Last trade</th><th class="num">Buys</th><th class="num">Sells</th><th>Verdict</th></tr></thead>
+          <tbody id="traderRows"></tbody></table>
+          <div class="note" style="margin:14px 0 0">Selection rule: someone <b>actively buying and selling now</b> — not the coin creator (sells only), not someone idle for a week. A week is too long for alpha coins; the window is tuned by the engine. The council's job is to <b>pick the best candidate</b>, not to reject everything.</div>
+        </div>
+      </div>
+      <div class="grid g2">
+        <div class="card"><div class="hd"><h2>AI setup for Follows</h2><div class="spacer"></div><button class="btn sm" id="applyAi">Apply</button></div>
+          <div class="bd">
+            <div class="kv"><span class="k">Search stage — how many AIs</span><span class="v"><input type="number" id="aiSearch" value="3" style="width:64px;text-align:right"></span></div>
+            <div class="kv"><span class="k">Validation council — how many</span><span class="v"><input type="number" id="aiCouncil" value="5" style="width:64px;text-align:right"></span></div>
+            <div class="kv"><span class="k">Models used</span><span class="v">from AI council page</span></div>
+            <div class="kv"><span class="k">Max per follow</span><span class="v"><input type="number" id="maxFollow" value="5" style="width:64px;text-align:right"> USD</span></div>
+            <div class="note" style="margin-top:12px">You asked me how many AIs I need — this is where it is set. All of them run through OmniRoute, so no extra keys are needed.</div>
+          </div></div>
+        <div class="card"><div class="hd"><h2>Positions copied</h2><div class="spacer"></div><span class="muted" style="font-size:13px">he buys → we buy · he sells → we sell</span></div>
+          <div class="bd" style="padding:6px 0"><table><thead><tr><th>Coin</th><th>Wallet</th><th class="num">Our size</th><th class="num">P&amp;L</th><th>Mirror</th></tr></thead><tbody id="copyRows"></tbody></table></div></div>
+      </div>
+    </section>
+
+    <!-- ================= AI COUNCIL ================= -->
+    <section class="page" id="page-council">
+      <div class="note" style="margin-bottom:16px">Add your own API keys here, refresh the models, and <b>test whether each voter actually works</b> before trusting it.</div>
+      <div class="card" style="margin-bottom:16px"><div class="hd"><h2>Voters</h2><div class="spacer"></div>
+        <button class="btn sm" id="refreshModels">Refresh models</button><button class="btn sm primary" id="testVoters">Test all voters</button></div>
+        <div class="bd" style="padding:6px 0"><table><thead><tr><th>Voter</th><th>Model</th><th>Works?</th><th class="num">Latency</th><th class="num">Votes today</th><th>Action</th></tr></thead>
+          <tbody id="voterRows"></tbody></table></div></div>
+      <div class="grid g2">
+        <div class="card"><div class="hd"><h2>Voting now</h2><div class="spacer"></div><span class="pill ok"><span class="led"></span>3 yes / 1 no / 1 out</span></div>
+          <div class="bd">
+            <div class="kv"><span class="k">Plan</span><span class="v">PEPE · mean-revert-v2</span></div>
+            <div class="kv"><span class="k">Veto rate today</span><span class="v">18% (7 of 39)</span></div>
+            <div class="kv"><span class="k">Core strategy replaced?</span><span class="v">never — council can only veto</span></div>
+          </div></div>
+        <div class="card"><div class="hd"><h2>Add a voter</h2><div class="spacer"></div><span class="muted" style="font-size:13px">keys live in Settings</span></div>
+          <div class="bd">
+            <label class="ck"><input type="checkbox" checked> deepseek — deepseek-v4-flash</label>
+            <label class="ck"><input type="checkbox" checked> nvidia — nemotron-70b</label>
+            <label class="ck"><input type="checkbox" checked> gemini — gemini-2.5-flash</label>
+            <label class="ck"><input type="checkbox" checked> qwen — qwen-max</label>
+            <label class="ck"><input type="checkbox"> openai — gpt-4o <span class="muted">(no key)</span></label>
+            <label class="ck"><input type="checkbox"> anthropic — claude <span class="muted">(not configured)</span></label>
+            <div class="note" style="margin-top:12px">Odd numbers (3, 5, 7) give a majority. Cap is 7.</div>
+          </div></div>
+      </div>
+    </section>
+
+    <!-- ================= EXCHANGES ================= -->
+    <section class="page" id="page-exchanges">
+      <div class="note" style="margin-bottom:16px"><b>Display only for now.</b> Add a wallet; click a box to expand its overall status. Trading comes later.</div>
+      <div class="squares" id="exchangeBoxes" style="grid-template-columns:repeat(4,minmax(0,1fr))"></div>
+    </section>
+
+    <!-- ================= STRATEGIES ================= -->
+    <section class="page" id="page-strategies">
+      <div class="note" style="margin-bottom:16px">All strategies — not a subset. Ten competing strategies plus the exit styles.</div>
+      <div class="card" style="margin-bottom:16px"><div class="hd"><h2>Ten competing strategies</h2><div class="spacer"></div><span class="muted" style="font-size:13px">kept as it is</span></div>
+        <div class="bd" style="padding:6px 0"><table><thead><tr><th>#</th><th>Strategy</th><th>State</th><th class="num">Trades</th><th class="num">Win</th><th class="num">P&amp;L</th></tr></thead><tbody id="stratRows"></tbody></table></div></div>
+      <div class="grid g2">
+        <div class="card"><div class="hd"><h2>By engine</h2></div><div class="bd" style="padding:6px 0"><table><thead><tr><th>Engine</th><th class="num">Trades</th><th class="num">P&amp;L</th></tr></thead><tbody>
+          <tr><td>Core bot</td><td class="num">1,102</td><td class="num up">+$6,410.90</td></tr>
+          <tr><td>Wish Me Rich</td><td class="num">611</td><td class="num up">+$1,204.33</td></tr>
+          <tr><td>Moonshot</td><td class="num">288</td><td class="num up">+$2,118.70</td></tr>
+          <tr><td>On-chain Alpha</td><td class="num">97</td><td class="num up">+$2,521.20</td></tr>
+          <tr><td>Follows</td><td class="num">0</td><td class="num muted">$0.00</td></tr>
+        </tbody></table></div></div>
+        <div class="card"><div class="hd"><h2>By exit style</h2></div><div class="bd" style="padding:6px 0"><table><thead><tr><th>Exit</th><th class="num">Used</th><th class="num">P&amp;L</th></tr></thead><tbody>
+          <tr><td>peak-trailing</td><td class="num">412</td><td class="num up">+$2,988.10</td></tr>
+          <tr><td>target +%</td><td class="num">766</td><td class="num up">+$4,102.55</td></tr>
+          <tr><td>timer 1–6 h</td><td class="num">611</td><td class="num up">+$1,204.33</td></tr>
+          <tr><td>stop loss</td><td class="num">309</td><td class="num down">−$1,240.90</td></tr>
+        </tbody></table></div></div>
+      </div>
+    </section>
+
+    <!-- ================= RULES ================= -->
+    <section class="page" id="page-rules">
+      <div class="note" style="margin-bottom:16px">Always-on safety rules. These are not strategies and cannot be turned off by a method.</div>
+      <div class="card"><div class="bd" style="padding:6px 0"><table>
+        <thead><tr><th>Rule</th><th>What it does</th><th>State</th></tr></thead>
+        <tbody>
+          <tr><td>Break-even / rent guard</td><td>Cuts a position that cannot cover its own fees</td><td><span class="tag buy">on</span></td></tr>
+          <tr><td>Tail-event breaker</td><td>Halts everything on a market-wide crash signal</td><td><span class="tag buy">on</span> <button class="btn tiny">Reset</button></td></tr>
+          <tr><td>Daily halt</td><td>Stops the day after a loss limit is hit</td><td><span class="tag buy">on</span> <button class="btn tiny">Clear</button></td></tr>
+          <tr><td>Honeypot probe</td><td>Checks a token can actually be sold before buying</td><td><span class="tag buy">on</span></td></tr>
+          <tr><td>Hard floors</td><td>Never spends below a floor balance</td><td><span class="tag buy">on</span></td></tr>
+          <tr><td>RugCheck vetting</td><td>Rejects tokens flagged as rugs</td><td><span class="tag buy">on</span></td></tr>
+          <tr><td>One live engine per coin class</td><td>Follows + Alpha and Moonshot + Wish cannot both be live</td><td><span class="tag buy">on</span></td></tr>
+        </tbody></table></div></div>
+    </section>
+
+    <!-- ================= SETTINGS ================= -->
+    <section class="page" id="page-settings">
+      <div class="note" style="margin-bottom:16px">API keys, model list and the dashboard token live here — not on the AI page. The local-AI buttons (LM Studio / Ollama) are removed entirely.</div>
+      <div class="grid g2">
+        <div class="card"><div class="hd"><h2>Keys</h2></div><div class="bd">
+          <div class="kv"><span class="k">OmniRoute API key</span><span class="v">sk-•••••• <span class="tag buy">set</span></span></div>
+          <div class="kv"><span class="k">DEX Screener API key</span><span class="v down">not set</span></div>
+          <div class="kv"><span class="k">Helius (Solana RPC)</span><span class="v"><span class="tag buy">set</span></span></div>
+          <div class="kv"><span class="k">KuCoin</span><span class="v"><span class="tag buy">set</span></span></div>
+          <div class="kv"><span class="k">Discord webhook</span><span class="v">lives on AI council page</span></div>
+        </div></div>
+        <div class="card"><div class="hd"><h2>Models</h2><div class="spacer"></div><button class="btn sm" id="refreshModels2">Refresh models</button></div>
+          <div class="bd">
+            <div class="note">This is where models are added and refreshed — pick the ones the council may use. OmniRoute currently offers <b>3,843</b>.</div>
+            <div class="kv"><span class="k">Provider count</span><span class="v">47 connections</span></div>
+            <div class="kv"><span class="k">Enabled for council</span><span class="v">4 of 7 selected</span></div>
+            <div class="kv"><span class="k">Last refreshed</span><span class="v" id="lastRefresh">—</span></div>
+          </div></div>
+      </div>
+      <div class="card" style="margin-top:16px"><div class="hd"><h2>Dashboard</h2></div><div class="bd">
+        <div class="kv"><span class="k">Dashboard token</span><span class="v">•••••••• <button class="btn tiny">Show</button></span></div>
+        <div class="kv"><span class="k">Live money</span><span class="v">ON by default — no paper toggle on method pages</span></div>
+        <div class="kv"><span class="k">Paper mode</span><span class="v">only on the Testing page</span></div>
+      </div></div>
+    </section>
+  </div>
+</div>
+
+<!-- detail drawer -->
+<div class="scrim" id="scrim"><div class="modal">
+  <div class="hd"><h3 id="mTitle">Detail</h3><div class="spacer"></div><button class="btn sm" id="mClose">Close</button></div>
+  <div class="bd" id="mBody"></div>
+</div></div>
+
+<script>
+/* ---------- fake data ---------- */
+const METHODS=[
+ {id:'core',name:'Core bot',live:true,money:'+$742.18',sub:'LIVE · 3/5 slots · 61% win'},
+ {id:'wish',name:'Wish Me Rich',live:false,money:'idle',sub:'stopped · 5/8 slots'},
+ {id:'moon',name:'Moonshot',live:false,money:'idle',sub:'stopped · 0 slots'},
+ {id:'alpha',name:'On-chain Alpha',live:false,money:'+$318.40',sub:'stopped · last run 2h ago'},
+ {id:'follows',name:'Follows',live:false,money:'not set up',sub:'needs DEX Screener key'}];
+const PERIODS={
+ today:{won:30,wonUsd:'+$1,988.20',lost:13,lostUsd:'−$703.65',rate:'61%',trades:43,split:'Core 31 · Alpha 12'},
+ yday:{won:22,wonUsd:'+$1,402.10',lost:19,lostUsd:'−$1,010.40',rate:'54%',trades:41,split:'Core 24 · Alpha 17'},
+ '7':{won:168,wonUsd:'+$9,884.30',lost:96,lostUsd:'−$4,120.15',rate:'64%',trades:264,split:'Core 171 · Alpha 93'},
+ '15':{won:341,wonUsd:'+$19,120.75',lost:210,lostUsd:'−$9,004.60',rate:'62%',trades:551,split:'Core 352 · Alpha 199'},
+ '30':{won:702,wonUsd:'+$38,441.20',lost:441,lostUsd:'−$18,220.90',rate:'61%',trades:1143,split:'Core 720 · Alpha 423'}};
+const HISTORY={
+ today:[['Core bot',18,13,11,7,'+$742.18'],['On-chain Alpha',8,4,3,1,'+$318.40'],['Moonshot',0,0,0,0,'$0.00'],['Wish Me Rich',0,0,0,0,'$0.00'],['Follows',0,0,0,0,'$0.00']],
+ '7':[['Core bot',112,59,71,41,'+$5,102.30'],['On-chain Alpha',51,20,34,17,'+$2,901.10'],['Moonshot',22,9,13,9,'+$1,204.40'],['Wish Me Rich',18,11,10,8,'+$410.20'],['Follows',0,0,0,0,'$0.00']],
+ '15':[['Core bot',231,121,148,83,'+$11,402.10'],['On-chain Alpha',96,41,62,34,'+$5,110.20'],['Moonshot',48,19,29,19,'+$2,204.40'],['Wish Me Rich',39,22,21,17,'+$810.20'],['Follows',0,0,0,0,'$0.00']],
+ '30':[['Core bot',470,250,301,169,'+$22,401.10'],['On-chain Alpha',201,90,128,73,'+$10,220.20'],['Moonshot',102,41,59,43,'+$4,104.40'],['Wish Me Rich',84,47,44,37,'+$1,310.20'],['Follows',0,0,0,0,'$0.00']]};
+const WALLETS=[['KuCoin','trading','$2,930.11'],['Phantom (Solana)','Solana','$1,102.44'],['Binance','display only','$174.22'],['DEX wallet','display only','$0.00']];
+const HOT=[
+ {c:'PEPE',sig:.82,d24:'+4.1%',state:'holding',taken:true},
+ {c:'SOL',sig:.74,d24:'+1.8%',state:'holding',taken:true},
+ {c:'ARB',sig:.69,d24:'−0.9%',state:'holding',taken:true},
+ {c:'WIF',sig:.61,d24:'+2.2%',state:'watch',taken:false},
+ {c:'BONK',sig:.44,d24:'−3.4%',state:'banned',taken:false}];
+/* [coin, entry time, minutes running, entry price, price now, pnl, direction] */
+const POS=[['PEPE','12:04',201,'$0.0000112','$0.0000120','+7.1%','up'],
+           ['SOL','09:41',344,'$168.40','$171.05','+1.6%','up'],
+           ['ARB','06:55',510,'$0.812','$0.799','−1.6%','down']];
+const KEYS=[['mean-revert-v2','active',41,13,'+$402.55','up'],['breakout-v1','active',29,11,'+$261.40','up'],['grid-lite','active',18,15,'−$121.77','down'],['scalp-30m','idle',12,9,'+$88.10','up'],['trend-rider','idle',9,7,'+$52.20','up'],['range-fade','idle',6,8,'−$30.15','down']];
+const STRATS=[['mean-revert-v2','active',54,19,'+$402.55'],['breakout-v1','active',40,15,'+$261.40'],['grid-lite','active',33,21,'−$121.77'],['scalp-30m','active',21,11,'+$88.10'],['trend-rider','active',16,9,'+$52.20'],['range-fade','active',14,12,'−$30.15'],['momentum-1h','idle',0,0,'$0.00'],['vwap-bounce','idle',0,0,'$0.00'],['ema-cross','idle',0,0,'$0.00'],['liquidity-sweep','idle',0,0,'$0.00']];
+const VOTERS=[['deepseek','deepseek-v4-flash',true,1.2,39],['nvidia','nemotron-70b',true,2.0,37],['gemini','gemini-2.5-flash',true,1.7,39],['qwen','qwen-max',true,3.1,31],['openai','gpt-4o',false,0,0]];
+const TRADERS=[
+ {w:'7xK…9fQ',coin:'AGENT CAT',last:'2 min ago',buys:18,sells:11,verdict:'pass'},
+ {w:'3mP…2vR',coin:'AGENT CAT',last:'4 days ago',buys:0,sells:1,verdict:'reject'},
+ {w:'9qL…8dT',coin:'AGENT CAT',last:'41 min ago',buys:6,sells:4,verdict:'watch'}];
+
+/* ---------- tiny helpers ---------- */
+const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+const el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!==undefined)e.innerHTML=h;return e;};
+/* deterministic pseudo-random so shapes stay stable */
+let seed=7;const rnd=()=>(seed=(seed*1103515245+12345)&0x7fffffff)/0x7fffffff;
+/* how long each open trade has been running */
+function fmtDur(ms){const s=Math.max(0,Math.floor(ms/1000));const h=Math.floor(s/3600),m=Math.floor(s%3600/60);
+  return h?`${h}h ${String(m).padStart(2,'0')}m`:`${m}m ${String(s%60).padStart(2,'0')}s`;}
+function tickTrades(){$$('.timer[data-start]').forEach(td=>{td.textContent=fmtDur(Date.now()-(+td.dataset.start||Date.now()));});}
+
+/* ---------- sparkline + candle drawing (no libraries) ---------- */
+function spark(values,up){
+  const w=66,h=22,min=Math.min(...values),max=Math.max(...values),span=(max-min)||1;
+  const pts=values.map((v,i)=>`${(i/(values.length-1)*w).toFixed(1)},${(h-((v-min)/span)*(h-4)-2).toFixed(1)}`).join(' ');
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${up?'var(--up)':'var(--down)'}" stroke-width="1.6"/></svg>`;
+}
+function candles(canvas,points,{pullback=false,volume=true}={}){
+  const dpr=window.devicePixelRatio||1;
+  const w=canvas.clientWidth||canvas.width, h=canvas.height;
+  canvas.width=w*dpr;canvas.height=h*dpr;
+  const c=canvas.getContext('2d');c.scale(dpr,dpr);c.clearRect(0,0,w,h);
+  seed=points+7;const n=Math.max(24,Math.floor(w/13));
+  let price=100;const data=[];
+  for(let i=0;i<n;i++){const o=price,cl=o+(rnd()-.48)*3.2;const hi=Math.max(o,cl)+rnd()*1.6,lo=Math.min(o,cl)-rnd()*1.6;
+    data.push({o,c:cl,h:hi,l:lo,v:rnd()});price=cl;}
+  const min=Math.min(...data.map(d=>d.l)),max=Math.max(...data.map(d=>d.h)),span=(max-min)||1;
+  const pad=8,plotH=h-(volume?34:14)-pad;
+  const y=v=>pad+(1-(v-min)/span)*plotH;
+  const bw=Math.max(3,(w-pad*2)/n-3);
+  data.forEach((d,i)=>{
+    const x=pad+i*((w-pad*2)/n);
+    const up=d.c>=d.o;c.strokeStyle=up?'#1f8f3d':'#e11d48';c.fillStyle=c.strokeStyle;c.lineWidth=1.2;
+    c.beginPath();c.moveTo(x+bw/2,y(d.h));c.lineTo(x+bw/2,y(d.l));c.stroke();
+    c.fillRect(x,y(Math.max(d.o,d.c)),bw,Math.max(1,Math.abs(y(d.o)-y(d.c))));
+    if(volume){const vh=d.v*24;c.globalAlpha=.25;c.fillRect(x,h-pad-vh,bw,vh);c.globalAlpha=1;}
+  });
+  // the method's line
+  c.strokeStyle='#3880f0';c.lineWidth=1.6;c.beginPath();
+  data.forEach((d,i)=>{const x=pad+i*((w-pad*2)/n)+bw/2;i?c.lineTo(x,y(d.c)):c.moveTo(x,y(d.c));});c.stroke();
+  if(pullback){
+    c.fillStyle='#3880f0';
+    [Math.floor(n*.35),Math.floor(n*.68)].forEach(i=>{
+      const x=pad+i*((w-pad*2)/n)+bw/2;
+      c.beginPath();c.moveTo(x,y(data[i].l)+10);c.lineTo(x-4,y(data[i].l)+17);c.lineTo(x+4,y(data[i].l)+17);c.closePath();c.fill();
+    });
+  }
+}
+
+/* ---------- render ---------- */
+function renderMethods(){
+  const box=$('#methodSquares');box.innerHTML='';
+  METHODS.forEach(m=>{
+    const led=m.id==='core'?'':(m.live?'':'off');
+    const cls=m.money.startsWith('+')?'up':(m.money.startsWith('−')||m.money.startsWith('-')?'down':'muted');
+    const sq=el('div','sq',`<div class="nm"><span class="led ${led}"></span>${m.name}</div>
+      <div class="big ${cls}">${m.money==='idle'?'idle':m.money}</div><div class="sub">${m.sub}</div>`);
+    sq.onclick=()=>go(m.id);
+    box.appendChild(sq);
+  });
+}
+function renderHistory(per){
+  const p=PERIODS[per]||PERIODS.today;
+  $('#hWon').textContent=p.won;$('#hWonUsd').textContent=p.wonUsd;
+  $('#hLost').textContent=p.lost;$('#hLostUsd').textContent=p.lostUsd;
+  $('#hRate').textContent=p.rate;$('#hTrades').textContent=p.trades;$('#hSplit').textContent=p.split;
+  const rows=HISTORY[per]||HISTORY.today;const tb=$('#historyRows');tb.innerHTML='';
+  rows.forEach(r=>{const tr=el('tr','clickable');
+    tr.innerHTML=`<td>${r[0]}</td><td class="num">${r[1]}</td><td class="num">${r[2]}</td><td class="num">${r[3]}</td><td class="num">${r[4]}</td>
+      <td class="num ${r[5].startsWith('+')?'up':(r[5].startsWith('−')?'down':'muted')}">${r[5]}</td>`;
+    tr.onclick=()=>detail(r[0]+' — history',`<div class="kv"><span class="k">Period</span><span class="v">${per}</span></div>
+      <div class="kv"><span class="k">Bought / sold</span><span class="v">${r[1]} / ${r[2]}</span></div>
+      <div class="kv"><span class="k">Won / lost</span><span class="v">${r[3]} / ${r[4]}</span></div>
+      <div class="kv"><span class="k">P&amp;L</span><span class="v">${r[5]}</span></div>`);
+    tb.appendChild(tr);});
+}
+function renderWallets(){
+  const tb=$('#walletRows');tb.innerHTML='';
+  WALLETS.forEach(w=>{const tr=el('tr','clickable');
+    tr.innerHTML=`<td><b>${w[0]}</b><div class="muted" style="font-size:12px">${w[1]}</div></td><td class="num">${w[2]}</td>`;
+    tr.onclick=()=>detail(w[0],`<div class="kv"><span class="k">Type</span><span class="v">${w[1]}</span></div>
+      <div class="kv"><span class="k">Balance</span><span class="v">${w[2]}</span></div>
+      <div class="kv"><span class="k">Role</span><span class="v">${w[1]==='trading'?'trades live':'display only'}</span></div>`);
+    tb.appendChild(tr);});
+}
+function renderHot(){
+  const tb=$('#hotRows');tb.innerHTML='';
+  HOT.forEach((h,i)=>{const tr=el('tr','clickable');
+    const st=h.state==='banned'?'ban':(h.state==='holding'?'buy':'');
+    tr.innerHTML=`<td><div class="coin"><span class="tick">${h.c.slice(0,3)}</span>${h.c}</div></td>
+      <td>${spark(Array.from({length:14},(_,k)=>50+Math.sin((i+1)*k/2)*8+rnd()*6),h.d24.startsWith('+'))}</td>
+      <td class="num">${h.sig.toFixed(2)}</td><td class="num ${h.d24.startsWith('+')?'up':'down'}">${h.d24}</td>
+      <td><span class="tag ${st}">${h.state}</span></td>
+      <td><div class="acts"><button class="btn tiny" data-act="leave">leave alone</button>
+        <button class="btn tiny" data-act="ban">ban</button>
+        <button class="btn tiny" data-act="buy">buy</button></div></td>`;
+    tr.onclick=e=>{
+      if(e.target.dataset.act){e.stopPropagation();act(e.target.dataset.act,h.c);tr.style.opacity=.55;
+        setTimeout(()=>tr.style.opacity=1,600);return;}
+      detail(h.c+` — ${h.state}`,`<div class="kv"><span class="k">Signal</span><span class="v">${h.sig.toFixed(2)}</span></div>
+        <div class="kv"><span class="k">24h</span><span class="v">${h.d24}</span></div>
+        <div class="kv"><span class="k">Slot taken</span><span class="v">${h.taken?'yes':'no'}</span></div>
+        <div class="chartwrap" style="margin-top:12px"><canvas id="mChart" height="180"></canvas></div>`);
+      setTimeout(()=>{const cv=$('#mChart');if(cv)candles(cv,i+5,{pullback:true});},30);
+    };
+    tb.appendChild(tr);});
+  $('#takenPill').textContent=HOT.filter(h=>h.taken).length+' of 5 taken';
+}
+function renderPos(){
+  const tb=$('#posRows');tb.innerHTML='';
+  POS.forEach(p=>{const tr=el('tr');
+    tr.innerHTML=`<td><div class="coin"><span class="tick">${p[0].slice(0,3)}</span>${p[0]}</div></td>
+      <td>today ${p[1]}</td>
+      <td class="timer" data-start="${Date.now()-p[2]*60000}">${fmtDur(p[2]*60000)}</td>
+      <td class="num">${p[3]}</td><td class="num">${p[4]}</td>
+      <td class="num ${p[6]}">${p[5]}</td>
+      <td><div class="acts"><button class="btn tiny">leave</button><button class="btn tiny">ban</button>
+      <button class="btn tiny">sell</button><button class="btn tiny">buy+</button></div></td>`;
+    tb.appendChild(tr);});
+  tickTrades();
+}
+function renderKeys(){
+  const tb=$('#keyRows');tb.innerHTML='';
+  KEYS.forEach(k=>{const tr=el('tr');
+    tr.innerHTML=`<td><b>${k[0]}</b>${k[1]==='active'?' <span class="tag buy">active</span>':''}</td>
+      <td>${k[1]}</td><td class="num">${k[2]}</td><td class="num">${k[3]}</td><td class="num ${k[5]}">${k[4]}</td>`;
+    tb.appendChild(tr);});
+}
+function renderStrats(){
+  const tb=$('#stratRows');tb.innerHTML='';
+  STRATS.forEach((s,i)=>{const tr=el('tr');
+    tr.innerHTML=`<td class="muted">${i+1}</td><td><b>${s[0]}</b></td><td>${s[1]}</td>
+      <td class="num">${s[2]}</td><td class="num">${s[3]}%</td>
+      <td class="num ${s[4].startsWith('+')?'up':(s[4].startsWith('−')?'down':'muted')}">${s[4]}</td>`;
+    tb.appendChild(tr);});
+}
+function renderVoters(){
+  const tb=$('#voterRows');tb.innerHTML='';
+  VOTERS.forEach(v=>{const tr=el('tr');
+    tr.innerHTML=`<td><b>${v[0]}</b></td><td class="muted">${v[1]}</td>
+      <td>${v[2]?'<span class="tag buy">yes</span>':'<span class="tag sell">no key</span>'}</td>
+      <td class="num">${v[2]?v[3].toFixed(1)+'s':'—'}</td><td class="num">${v[4]}</td>
+      <td><button class="btn tiny">test</button></td>`;
+    tb.appendChild(tr);});
+}
+function renderTraders(){
+  const tb=$('#traderRows');tb.innerHTML='';
+  TRADERS.forEach((t,i)=>{const tr=el('tr','clickable');
+    const verdict=t.verdict==='pass'?'<span class="tag buy">pass — copying</span>':
+      t.verdict==='reject'?'<span class="tag sell">reject — creator only sold</span>':'<span class="tag">watching</span>';
+    tr.innerHTML=`<td><input type="radio" name="tr" ${t.verdict==='pass'?'checked':''}></td>
+      <td style="font-family:var(--font-mono);font-size:13px">${t.w}</td><td>${t.coin}</td>
+      <td class="num">${t.last}</td><td class="num">${t.buys}</td><td class="num">${t.sells}</td><td>${verdict}</td>`;
+    tr.onclick=e=>{if(e.target.tagName==='INPUT')return;detail('Wallet '+t.w,
+      `<div class="kv"><span class="k">Coin</span><span class="v">${t.coin}</span></div>
+       <div class="kv"><span class="k">Last trade</span><span class="v">${t.last}</span></div>
+       <div class="kv"><span class="k">Buys / sells (window)</span><span class="v">${t.buys} / ${t.sells}</span></div>
+       <div class="kv"><span class="k">Verdict</span><span class="v">${t.verdict}</span></div>`);};
+    tb.appendChild(tr);});
+  $('#followIt').disabled=false;
+}
+function renderCopy(){
+  const tb=$('#copyRows');tb.innerHTML='';
+  [['AGENT CAT','7xK…9fQ','$5.00','+$1.85','in sync'],['WIFHAT','9qL…8dT','$3.00','−$0.42','waiting sell']]
+   .forEach(r=>{const tr=el('tr');
+     tr.innerHTML=`<td>${r[0]}</td><td style="font-family:var(--font-mono);font-size:13px">${r[1]}</td>
+       <td class="num">${r[2]}</td><td class="num ${r[3].startsWith('+')?'up':'down'}">${r[3]}</td>
+       <td>${r[4]==='in sync'?'<span class="tag buy">in sync</span>':'<span class="tag">'+r[4]+'</span>'}</td>`;
+     tb.appendChild(tr);});
+}
+function renderExchanges(){
+  const box=$('#exchangeBoxes');box.innerHTML='';
+  [['KuCoin','$2,930.11','trading · 11.7 free USDT',true],['Phantom','$1,102.44','Solana · 0.02 SOL + tokens',true],
+   ['Binance','$174.22','display only',false],['Add wallet','+','assistant walks you through it',false]]
+  .forEach(x=>{const b=el('div','sq',`<div class="nm"><span class="led ${x[3]?'':'off'}"></span>${x[0]}</div>
+      <div class="big ${x[0]==='Add wallet'?'muted':''}">${x[1]}</div><div class="sub">${x[2]}</div>`);
+    b.onclick=()=>x[0]==='Add wallet'?detail('Add a wallet',
+      `<div class="note">The assistant asks what you need — “Binance, pick a coin, Phantom” — and adds it for you. Display only for now.</div>`)
+      :detail(x[0],`<div class="kv"><span class="k">Balance</span><span class="v">${x[1]}</span></div>
+        <div class="kv"><span class="k">Role</span><span class="v">${x[2]}</span></div>`);
+    box.appendChild(b);});
+}
+function renderPickMethods(){
+  const box=$('#pickMethods');box.innerHTML='';
+  const names=['Core bot','Wish Me Rich','Moonshot','On-chain Alpha','Follows'];
+  const wrap=el('div','grid g3');
+  names.forEach((n,i)=>{const l=el('label','ck');
+    l.innerHTML=`<input type="checkbox" ${i<2?'checked':''}> ${n} <span class="muted" id="pickSub${i}"></span>`;
+    wrap.appendChild(l);});
+  box.appendChild(wrap);
+  const sync=()=>{
+    const picked=Array.from(box.querySelectorAll('input')).filter(c=>c.checked).length;
+    $('#startTest').disabled=picked===0;
+    $('#startTest').textContent=picked?`Start testing (${picked})`:'Start testing';
+  };
+  box.querySelectorAll('input').forEach(c=>c.onchange=sync);sync();
+}
+function renderPaper(started){
+  const box=$('#paperSquares');box.innerHTML='';
+  const data=[['Core bot','+$18.40','up','day 6 of 14 · 61% win'],['Wish Me Rich','−$3.12','down','day 6 of 14 · 42% win'],
+   ['Moonshot','+$7.80','up','day 6 of 14 · 55% win'],['On-chain Alpha','+$22.05','up','day 6 of 14 · 64% win'],
+   ['Follows','not started','muted','needs DEX Screener key']];
+  data.forEach(d=>{if(!started&&d[0]!=='Core bot')return;
+    const b=el('div','sq',`<div class="nm"><span class="led paper"></span>${d[0]}</div>
+      <div class="big ${d[2]}">${d[1]}</div><div class="sub">${d[3]}</div>`);
+    b.onclick=()=>detail(d[0]+' — paper',
+      `<div class="kv"><span class="k">Money</span><span class="v">${d[1]}</span></div>
+       <div class="kv"><span class="k">Progress</span><span class="v">${d[3]}</span></div>
+       <div class="kv"><span class="k">Shutdowns</span><span class="v">${d[0]==='Core bot'?'1 — daily halt, 3 Oct 22:10':'none'}</span></div>
+       <div class="note">Paper only — never mixed with live numbers.</div>`);
+    box.appendChild(b);});
+}
+
+/* ---------- interactions ---------- */
+const titles={home:['Home','Everything at a glance'],testing:['Testing','Paper only — run any method, or all five, alongside live'],
+ core:['Core bot','Own status, slots, chart, strategy keys'],wish:['Wish Me Rich','Spray engine · own counts · 1–6 h timers'],
+ moon:['Moonshot','How much today · overall · record · pullback chart'],alpha:['On-chain Alpha','Own slots and timing'],
+ follows:['Follows','Copy the trader actively buying and selling'],council:['AI council','Add keys, refresh, test each voter'],
+ exchanges:['Exchanges','Display only — wallets at a glance'],strategies:['Strategies','All ten, plus exit styles'],
+ rules:['Rules','Always-on safety rules'],settings:['Settings','Keys, models, dashboard token']};
+function go(id){
+  $$('.row[data-page]').forEach(r=>r.classList.toggle('sel',r.dataset.page===id));
+  $$('.page').forEach(p=>p.classList.remove('on'));
+  const pg=$('#page-'+id); if(pg)pg.classList.add('on');
+  const t=titles[id]||['',''];$('#ptitle').textContent=t[0];$('#psub').textContent=t[1];
+  if(id==='core')setTimeout(()=>candles($('#chartMain'),12,{pullback:true}),30);
+  if(id==='moon')setTimeout(()=>candles($('#chartMoon'),9,{pullback:true}),30);
+}
+$$('.row[data-page]').forEach(r=>r.onclick=()=>go(r.dataset.page));
+function detail(title,html){$('#mTitle').textContent=title;$('#mBody').innerHTML=html;$('#scrim').classList.add('on');}
+$('#mClose').onclick=()=>$('#scrim').classList.remove('on');
+$('#scrim').onclick=e=>{if(e.target===$('#scrim'))$('#scrim').classList.remove('on');};
+function act(a,coin){detail(a==='leave'?'Leave alone':(a==='ban'?'Ban':a+' '+coin),
+  `<div class="note">Action <b>${a}</b> applied to <b>${coin}</b>. In the real dashboard this calls the existing endpoint
+   (<code>/api/ban</code>, <code>/api/buy</code>, …) — the buttons that were in the old UI and went missing.</div>`);}
+
+/* segmented controls */
+$$('.seg').forEach(seg=>seg.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  if(seg.id==='segHome')renderHistory(b.dataset.per);
+  if(seg.id==='segTf')candles($('#chartMain'),{S:6,M:12,L:20,XL:30}[b.dataset.tf],{pullback:true});
+}));
+/* slots +/- */
+$$('[data-slots]').forEach(b=>b.onclick=()=>{
+  const which=b.dataset.slots,d=+b.dataset.d,node=$('#slots'+which.charAt(0).toUpperCase()+which.slice(1));
+  const v=Math.max(0,Math.min(8,(+node.textContent)+d));node.textContent=v;});
+/* buttons that must visibly do something */
+$('#csvBtn').onclick=()=>detail('CSV export',`<div class="note">Exports the current period. In the live app this hits the existing <code>CSV</code> endpoint.</div>`);
+$('#addWalletBtn').onclick=()=>detail('Add wallet',`<div class="note">Assistant flow: “which exchange? which coin? Phantom or DEX wallet?” — display only for now.</div>`);
+$('#syncBtn').onclick=()=>detail('Sync wallet',`<div class="note">Reads balances and open orders from every wallet. Lives inside Core bot, not the top bar.</div>`);
+$('#sellAllBtn').onclick=()=>detail('Sell all',`<div class="note">Flattens every open position. Confirmation required in the real UI.</div>`);
+$('#findTrader').onclick=()=>{renderTraders();$('#followsStatus').textContent='Scanning…';};
+$('#followIt').onclick=()=>detail('Following',`<div class="note">Copying starts at the configured size. He buys → we buy. He sells → we sell.</div>`);
+$('#applyAi').onclick=()=>{$('#cfgSearch').textContent=$('#aiSearch').value;$('#cfgCouncil').textContent=$('#aiCouncil').value;
+  detail('AI setup applied',`<div class="note">Search AIs: ${$('#aiSearch').value} · Validation council: ${$('#aiCouncil').value}. All via OmniRoute — no new keys.</div>`);};
+$('#testVoters').onclick=()=>detail('Testing voters',`<div class="note">Pings each voter with a tiny prompt. One voter has no key and will fail — that is the point of the button.</div>`);
+$('#refreshModels').onclick=$('#refreshModels2').onclick=()=>{$('#lastRefresh').textContent=new Date().toLocaleTimeString();
+  detail('Models refreshed',`<div class="note">Fetched from OmniRoute: 3,843 models across 47 providers.</div>`);};
+$('#wishStart').onclick=()=>detail('Wish Me Rich',`<div class="note">Starts the spray engine LIVE. One live spender per wallet — stop Core first.</div>`);
+$('#moonStart').onclick=()=>detail('Moonshot',`<div class="note">Starts Moonshot LIVE. Moonshot and Wish cannot both be live.</div>`);
+$('#startTest').onclick=()=>{renderPaper(true);detail('Test started',`<div class="note">Paper run started for the selected methods — $${$('#pBudget').value} each for ${$('#pDays').value} days. Live engines are untouched.</div>`);};
+/* testing timer + money (really moves) */
+let tSec=8*3600,paused=false,money=118.40;
+setInterval(()=>{
+  tickTrades();
+  if(!paused&&tSec>0){tSec--;money+=(Math.random()-.45)*.06;
+    const h=String(Math.floor(tSec/3600)).padStart(2,'0'),m=String(Math.floor(tSec%3600/60)).padStart(2,'0'),s=String(tSec%60).padStart(2,'0');
+    $('#tTimer').textContent=`${h}:${m}:${s}`;
+    const v=Math.max(0,money);$('#tMoney').textContent='$'+v.toFixed(2);
+    $('#tMoney').className='v '+(v>=100?'up':'down');}
+},1000);
+$('#tPause').onclick=e=>{paused=!paused;e.target.textContent=paused?'Resume':'Pause';
+  $('#tMsg').textContent=paused?'Paused — the timer is holding.':'Running — the timer is moving again.';};
+$('#tStop').onclick=()=>{$('#tMsg').textContent='Stopped. Paper money only — nothing real was touched.';$('#detailPill').textContent='Core bot · paper · stopped';};
+$('#tReset').onclick=()=>{tSec=14*24*3600;money=100;$('#tMsg').textContent='Reset to $100 over 14 days.';};
+document.querySelectorAll('#page-testing .seg').forEach(()=>{});
+
+/* boot */
+renderMethods();renderHistory('today');renderWallets();renderHot();renderPos();renderKeys();renderStrats();
+renderVoters();renderTraders();renderCopy();renderExchanges();renderPickMethods();renderPaper(false);
+setTimeout(()=>candles($('#chartMain'),12,{pullback:true}),60);
+window.addEventListener('resize',()=>{if($('#page-core').classList.contains('on'))candles($('#chartMain'),12,{pullback:true});});
+</script>
+</body>
+</html>
